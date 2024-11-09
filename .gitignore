@@ -1,0 +1,15 @@
+# Logs
+*.log
+
+# OS-specific files
+.DS_Store  # for macOS
+Thumbs.db  # for Windows
+
+# Environment files
+.env
+
+# IDE or editor-specific files
+.idea/
+.vscode/
+
+node_modules/
