@@ -4,21 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Parking Lot QR Scanner</title>
-  <link rel="stylesheet" href="/index.2cdaf7bc.css">  <!-- Link to external CSS file for styles -->
+  <link rel="stylesheet" href="/index.2cdaf7bc.css">
 </head>
 <body>
   <div class="container">
     <div class="scanner-container">
       <h2>Scan Your QR Code to Enter the Parking Lot</h2>
-      <div id="reader" class="scanner-box"></div>  <!-- QR Code Scanner Area -->
-      <button id="start-scanning" class="scan-btn">Start Scanning</button>  <!-- Start Scanning Button -->
-    </div>
-    <div class="result-container">
-      <p id="qr-result">Please scan your QR code to proceed.</p>
+      <div id="reader"></div> <!-- This is the QR code scanner element -->
+<div id="qr-result">Scanned result will appear here</div> <!-- This is where the result appears -->
+<button id="confirm-btn" style="display: none">Confirm</button> <!-- Confirmation button -->
+<button id="start-scanning">Start Scanning</button> <!-- Button to start scanning -->
     </div>
   </div>
   
-  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" defer=""></script>  <!-- External QR scanner script -->
-  <script src="/index.975ef6c8.js" defer=""></script>  <!-- Yours JS file -->
+  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js" defer=""></script>
+  <script src="/index.975ef6c8.js" defer=""></script>
 </body>
 </html>
