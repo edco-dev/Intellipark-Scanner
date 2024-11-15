@@ -10,10 +10,13 @@
   <div class="container">
     <div class="scanner-container">
       <h2>Scan Your QR Code to Enter the Parking Lot</h2>
-      <div id="reader"></div> <!-- This is the QR code scanner element -->
-<div id="qr-result">Scanned result will appear here</div> <!-- This is where the result appears -->
-<button id="confirm-btn" style="display: none;">Confirm</button> <!-- Confirmation button -->
-<button id="start-scanning">Start Scanning</button> <!-- Button to start scanning -->
+      <div id="reader"></div> <!-- QR code scanner element -->
+      
+      <div id="qr-result">Scanned result will appear here</div> <!-- Scanned result display -->
+      <div id="loader" class="loader" style="display: none;"></div> <!-- Loader for API processes -->
+      
+      <button id="confirm-btn" style="display: none;">Confirm</button> <!-- Confirmation button -->
+      <button id="start-scanning">Start Scanning!</button> <!-- Button to start scanning -->
     </div>
   </div>
   
@@ -21,3 +24,5 @@
   <script type="module" src="index.js"></script>
 </body>
 </html>
+
+/* this only */

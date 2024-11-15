@@ -1,172 +1,276 @@
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
-// Define a function to handle the QR code scan success
-async function onScanSuccess(decodedText) {
-  const resultElement = document.getElementById('qr-result');
-  const confirmButton = document.getElementById('confirm-btn');
-  
-  // Check if the resultElement exists
-  if (!resultElement) {
-    console.error('Element with id "qr-result" not found.');
-    return;
-  }
+let isProcessing = false; // Flag to track if a scan is being processed
 
-  // Parse the decoded text as a JSON object
-  let decodedObj;
+// Function to toggle the loader visibility
+function toggleLoader(show) {
+  const loader = document.getElementById("loader");
+  loader.style.display = show ? "block" : "none";
+}
+
+// Function to handle successful QR code scan
+async function onScanSuccess(decodedText) {
+  if (isProcessing) return; // Prevent multiple scans during processing
+
+  isProcessing = true; // Set processing state to true
+  toggleLoader(true); // Show loader
+
+  let docId;
+  let fullData = {}; // Object to hold data for API calls
+
+  // Parse QR code data
   try {
-    decodedObj = JSON.parse(decodedText); // Parse the JSON string
+    const decodedObj = JSON.parse(decodedText);
+    docId = decodedObj.docId;
+    console.log("Extracted docId:", docId);
   } catch (error) {
     console.error("Error parsing QR code data:", error);
+    toggleLoader(false);
+    isProcessing = false;
     return;
   }
 
-  const documentId = decodedObj.docId; // Extract docId from the parsed object
+  // Stop scanner temporarily
+  html5QrcodeScanner.clear();
 
-  // Display the scanned result
-  resultElement.innerText = `Scanned result: ${documentId}`;
-  
-  // Hide confirm button until validation
-  if (confirmButton) {
-    confirmButton.style.display = 'none';
-  } else {
-    console.error('Element with id "confirm-btn" not found.');
-  }
-
-  // Validate the scanned document ID with the API
-  const isValid = await validateDocumentId(documentId);
+  // Validate document ID
+  const isValid = await validateDocumentId(docId, (data) => {
+    fullData = data;
+  });
 
   if (isValid) {
-    console.log('QR Code is valid:', documentId);
-    resultElement.innerText += " (Valid)";
-    
-    // Show confirm button if valid
-    if (confirmButton) {
-      confirmButton.style.display = 'block';
-      confirmButton.onclick = () => {
-        console.log('QR Code confirmed:', documentId);
-        // Add further action if needed
-      };
+    console.log("Validation passed:", fullData);
+
+    // Check the vehicle's status for entry or exit
+    if (fullData.status === "inside") {
+      console.log("Vehicle is already inside. Processing exit.");
+      const exitSuccess = await vehicleExit(fullData); // Handle exit
+
+      if (exitSuccess) {
+        console.log("Vehicle exit successful.");
+        document.getElementById('qr-result').innerText = "Vehicle exit successful!";
+      }
+    } else {
+      console.log("Vehicle is outside. Processing entry.");
+      const entrySuccess = await vehicleEntry(fullData); // Handle entry
+
+      if (entrySuccess) {
+        console.log("Vehicle entry successful.");
+        document.getElementById('qr-result').innerText = "Vehicle entry successful!";
+      }
     }
   } else {
-    console.log('QR Code is NOT valid:', documentId);
-    resultElement.innerText += " (Not valid)";
+    console.error("Validation failed.");
+  }
+
+  // Cleanup
+  toggleLoader(false);
+  isProcessing = false;
+
+  // Stop camera feed
+  const videoElement = document.querySelector("video");
+  if (videoElement) {
+    const stream = videoElement.srcObject;
+    const tracks = stream?.getTracks();
+    tracks?.forEach(track => track.stop());
   }
 }
 
-// Function to validate the document ID using the API
-// Function to validate the document ID using the API
-async function validateDocumentId(documentId) {
+// Function to validate the document ID using the API with the corrected structure
+async function validateDocumentId(documentId, onSuccess) {
   try {
-    console.log("Received docId:", documentId);
-    console.log("Type of docId:", typeof documentId); // Check the type
+    documentId = documentId.trim();
+    console.log("Trimmed docId:", documentId);
 
-    // If docId is a JSON string (we're assuming it's a stringified object), parse it
-    let parsedDocId = null;
-    if (typeof documentId === 'string') {
-      try {
-        const docObject = JSON.parse(documentId);  // Try to parse the string
-        if (docObject && docObject.docId) {
-          parsedDocId = docObject.docId;  // Extract the actual docId
-          console.log("Parsed docId from JSON:", parsedDocId);
-        } else {
-          console.error('Invalid docId format in JSON');
-          return false;
-        }
-      } catch (e) {
-        console.error('Error parsing docId from JSON:', e);
-        return false;
-      }
-    } else {
-      console.error('Invalid docId: Expected a string');
+    if (typeof documentId !== 'string' || documentId === '') {
+      console.error('Invalid docId: Expected a non-empty string');
       return false;
     }
 
-    // Now validate the parsed docId
-    const trimmedDocId = parsedDocId.trim();  // Trim spaces if any
-    console.log("Trimmed docId:", trimmedDocId);
+    console.log("Sending request to /api/validate with docId:", documentId);
 
-    // If the docId is not a string or empty, we can't validate it
-    if (typeof trimmedDocId !== 'string' || trimmedDocId === '') {
-      console.error('Invalid docId: It should be a non-empty string');
-      return false;
-    }
-
-    // Make the API request to validate the docId
     const response = await fetch('https://intellipark-backend.onrender.com/api/validate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ docId: trimmedDocId }), // Send the trimmed docId
+      body: JSON.stringify({ docId: documentId })
     });
 
-    // If the response is not successful, log and return false
+    console.log("Response status:", response.status);
     if (!response.ok) {
-      console.error(`Validation API returned status ${response.status}`);
+      console.error("API request failed with status:", response.status);
       return false;
     }
 
-    // Parse the response from the API
     const result = await response.json();
-    console.log('API Response:', result);
+    console.log('Parsed API Response:', result);
 
-    // Check if the response has a valid field and log accordingly
-    if (result.valid === true) {
-      console.log("Document ID is valid:", trimmedDocId);
-      return true; // Valid ID
+    // Check if result contains action and proceed based on action type
+    if (result && result.action === "enter") {
+      console.log("Document ID is valid for entry:", documentId);
+
+      // Structure data for vehicle entry
+      const data = {
+        firstName: result.data?.firstName || "",
+        middleName: result.data?.middleName || "",
+        lastName: result.data?.lastName || "",
+        contactNumber: result.data?.contactNumber || "",
+        userType: result.data?.userType || "",
+        vehicleType: result.data?.vehicleType || "",
+        status: result.data?.status,
+        vehicleColor: result.data?.vehicleColor || "",
+        plateNumber: result.data?.plateNumber || "",
+        message: result.message || ""  // `message` is still directly on `result`
+      };
+
+      // Trigger the callback function for successful validation
+      if (onSuccess) onSuccess(data);
+      return true; // Return true if the action is "enter"
+    } else if (result && result.action === "exit") {
+      console.log("Document ID is valid for exit:", documentId);
+
+      // Structure data for vehicle exit
+      const data = {
+        firstName: result.data?.firstName || "",
+        middleName: result.data?.middleName || "",
+        lastName: result.data?.lastName || "",
+        contactNumber: result.data?.contactNumber || "",
+        userType: result.data?.userType || "",
+        vehicleType: result.data?.vehicleType || "",
+        status: result.data?.status,
+        vehicleColor: result.data?.vehicleColor || "",
+        plateNumber: result.data?.plateNumber || "",
+        message: result.message || ""  // `message` is still directly on `result`
+      };
+
+      // Call vehicleExit API (you should implement this function somewhere in your code)
+      const exitSuccess = await vehicleExit(data); // Send data for vehicle exit
+
+      if (exitSuccess) {
+        console.log("Vehicle exit successful.");
+      } else {
+        console.error("Vehicle exit failed.");
+      }
+      return true; // Return true after exit action is processed
     } else {
-      console.log("Document ID is invalid:", trimmedDocId);
-      return false; // Invalid ID
+      console.error("Validation failed. Document ID invalid or action not recognized.");
+      if (result.message) {
+        alert(result.message); // Show message if available
+      }
+      return false; // Return false if no valid action
     }
   } catch (error) {
-    // Log any error that occurs during the API call or timeout
     console.error('Error during validation API call:', error);
-    return false; // Treat as invalid in case of error
+    return false; // Return false if there's an error in the request
   }
 }
 
-let isScanning = false;
 
-function onScanSuccess(decodedText) {
-  if (isScanning) {
-    console.log('Scan already in progress. Please wait...');
-    return; // If scanning is in progress, return early
-  }
+// Function to handle vehicle entry API call
+// Function to handle vehicle entry API call
+async function vehicleEntry(data) {
+  console.log("Attempting vehicle entry with the following data:", data);
+  try {
+    const response = await fetch('https://intellipark-backend.onrender.com/api/vehicle-entry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
 
-  isScanning = true; // Set scanning flag to true
-  console.log("Scanned docId:", decodedText);  // Log scanned docId (string)
-
-  // Perform the validation
-  const docId = decodedText.trim(); // Ensure that the docId is trimmed and clean
-
-  validateDocumentId(docId).then(isValid => {
-    if (isValid) {
-      console.log("ID is valid, you can now send it to Arduino.");
-      // Send to Arduino or perform other actions
-    } else {
-      console.log("ID is not valid, do not send to Arduino.");
+    if (!response.ok) {
+      console.error(`Vehicle entry API request failed with status ${response.status}`);
+      return false;
     }
-  }).catch(error => {
-    console.error("Error in validating the document ID:", error);
-  });
 
-  // Set a delay before allowing another scan
-  setTimeout(() => {
-    isScanning = false; // Reset flag after a delay (e.g., 3 seconds)
-    console.log('Ready for the next scan!');
-  }, 3000);  // 3 seconds delay
+    const result = await response.json();
+    console.log("Vehicle entry API response:", result);
+
+    // If entry is successful, trigger gate opening and then close after a delay
+    if (result.success === true) {
+      console.log("Vehicle entry successful. Opening gate...");
+      await openGate();  // Open gate
+
+      // Close gate after 3 seconds (allowing the vehicle to pass)
+      setTimeout(async () => {
+        console.log("Closing gate after vehicle entry.");
+        await closeGate();
+      }, 3000);  // Adjust the time as necessary
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error during vehicle entry API call:", error);
+    return false;
+  }
+}
+
+// Function to handle vehicle exit API call
+async function vehicleExit(data) {
+  console.log("Attempting vehicle exit with the following data:", data);
+  try {
+    const response = await fetch('https://intellipark-backend.onrender.com/api/vehicle-exit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      console.error(`Vehicle exit API request failed with status ${response.status}`);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log("Vehicle exit API response:", result);
+
+    // If exit is successful, trigger gate closing immediately
+    if (result.success === true) {
+      console.log("Vehicle exit successful. Closing gate...");
+      await closeGate();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error during vehicle exit API call:", error);
+    return false;
+  }
+}
+
+// Function to open the gate (trigger GET request)
+async function openGate() {
+  try {
+    const response = await fetch('http://localhost:3000/api/open', { method: 'GET' });
+    if (!response.ok) {
+      console.error(`Failed to open gate. Status: ${response.status}`);
+      return false;
+    }
+    console.log("Gate opened successfully.");
+    return true;
+  } catch (error) {
+    console.error("Error opening the gate:", error);
+    return false;
+  }
+}
+
+// Function to close the gate (trigger GET request)
+async function closeGate() {
+  try {
+    const response = await fetch('http://localhost:3000/api/close', { method: 'GET' });
+    if (!response.ok) {
+      console.error(`Failed to close gate. Status: ${response.status}`);
+      return false;
+    }
+    console.log("Gate closed successfully.");
+    return true;
+  } catch (error) {
+    console.error("Error closing the gate:", error);
+    return false;
+  }
 }
 
 
-
-// Optional function for scan failure (e.g., no QR code found)
-function onScanFailure(error) {
-  console.warn(`QR code scan error: ${error}`);
-}
-
-// Initialize the QR code scanner
 const html5QrcodeScanner = new Html5QrcodeScanner(
-  'reader',   
+  'reader',
   {
     fps: 10,
     qrbox: 350,
@@ -179,7 +283,15 @@ const html5QrcodeScanner = new Html5QrcodeScanner(
   }
 );
 
-// Event listener to start scanning
 document.getElementById('start-scanning').addEventListener('click', () => {
+  isProcessing = false;
+  document.getElementById('qr-result').innerText = "";
   html5QrcodeScanner.render(onScanSuccess, onScanFailure);
 });
+
+function onScanFailure(error) {
+  console.warn(`QR code scan error: ${error}`);
+}
+
+
+//this only
