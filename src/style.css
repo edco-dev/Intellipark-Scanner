@@ -7,7 +7,7 @@ body {
     align-items: center;
     height: 100vh;
     margin: 0;
-    background-color: #f0f0f0;
+    background-color: #f0f0f0da;
   }
   
   .container {
@@ -15,24 +15,33 @@ body {
   }
   
   .scanner-container {
-    padding: 20px;
+    padding: 100px;
     border: 1px solid #ddd;
-    border-radius: 10px;
+    border-radius: 20px;
     background-color: #ffffff;
     width: 300px;
+    color: #1a0101c0;
   }
   
+  
   #qr-result {
-    margin-top: 20px;
+    margin-top: 50px;
     font-size: 18px;
-    color: #333;
+    color: #1a0101c0;
   }
   
   button {
-    margin-top: 10px;
-    padding: 10px;
+    padding: 15px;
     font-size: 16px;
     cursor: pointer;
+    border: none;
+    border-radius: 50px;
+    background-color: #49a5ff;
+    box-shadow: inset;
+    font-weight: bold;
+    color: #f0f0f0;
+    width: 200px;
+    margin-top: 30px;
   }
   
   /* Loader style */
