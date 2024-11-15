@@ -186,19 +186,14 @@ async function vehicleEntry(data) {
     const result = await response.json();
     console.log("Vehicle entry API response:", result);
 
-    // If entry is successful, trigger gate opening and then close after a delay
-    if (result.success === true) {
-      console.log("Vehicle entry successful. Opening gate...");
-      await openGate();  // Open gate
-
-      // Close gate after 3 seconds (allowing the vehicle to pass)
-      setTimeout(async () => {
+    openGate();
+    
+    setTimeout(async () => {
         console.log("Closing gate after vehicle entry.");
         await closeGate();
-      }, 3000);  // Adjust the time as necessary
+    }, 10000);
+    
       return true;
-    }
-    return false;
   } catch (error) {
     console.error("Error during vehicle entry API call:", error);
     return false;
@@ -222,14 +217,16 @@ async function vehicleExit(data) {
 
     const result = await response.json();
     console.log("Vehicle exit API response:", result);
+    
+    openGate();  // Open gate
 
-    // If exit is successful, trigger gate closing immediately
-    if (result.success === true) {
-      console.log("Vehicle exit successful. Closing gate...");
+    // Close gate after 3 seconds (allowing the vehicle to pass)
+    setTimeout(async () => {
+      console.log("Closing gate after vehicle entry.");
       await closeGate();
-      return true;
-    }
-    return false;
+    }, 10000);
+    // If exit is successful, trigger gate closing immediately
+
   } catch (error) {
     console.error("Error during vehicle exit API call:", error);
     return false;
