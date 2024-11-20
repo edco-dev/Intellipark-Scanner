@@ -249,7 +249,7 @@ async function openGate() {
   }
 }
 
-// Function to close the gate (trigger GET request)
+// Function to close the gate (trigger GET reques)
 async function closeGate() {
   try {
     const response = await fetch('http://localhost:3000/api/close', { method: 'GET' });
